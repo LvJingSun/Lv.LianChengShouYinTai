@@ -1,0 +1,872 @@
+//
+//  Ca_MenuOrderViewController.m
+//  CashierDeskIphone
+//
+//  Created by mac on 15-7-1.
+//  Copyright (c) 2015年 MaxLinksTec. All rights reserved.
+//
+
+#import "Ca_MenuOrderViewController.h"
+
+#import "OrderCell.h"
+
+@interface Ca_MenuOrderViewController ()
+
+@property (weak, nonatomic) IBOutlet UIView *m_titleView;
+
+@property (weak, nonatomic) IBOutlet UIView *m_tempView;
+
+@property (weak, nonatomic) IBOutlet UITableView *m_tableView;
+
+@property (weak, nonatomic) IBOutlet UIView *m_downView;
+
+@property (weak, nonatomic) IBOutlet UILabel *m_seatName;
+@property (weak, nonatomic) IBOutlet UIButton *m_submitBtn;
+
+@property (weak, nonatomic) IBOutlet UIButton *m_cancelBtn;
+
+- (IBAction)goBack:(id)sender;
+
+// 选择座位
+- (void)chooseSeatCkicked:(id)sender;
+// 选择了座位后进行提交
+- (IBAction)submitSeatClicked:(id)sender;
+// 取消按钮触发的事件
+- (IBAction)cancelBtnClicked:(id)sender;
+
+
+@end
+
+@implementation Ca_MenuOrderViewController
+
+@synthesize m_orderId;
+
+@synthesize m_SectionsSet;
+
+@synthesize m_orderList;
+
+@synthesize m_dic;
+
+@synthesize m_seatList;
+
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    
+    if (self) {
+        
+        m_SectionsSet = [[NSMutableSet alloc]init];
+        
+        m_orderList = [[NSMutableArray alloc]initWithCapacity:0];
+        
+        m_dic = [[NSDictionary alloc]init];
+
+        m_seatList = [[NSMutableArray alloc]initWithCapacity:0];
+        
+        menta = [[NSMutableArray alloc]initWithCapacity:0];
+
+    }
+    
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view from its nib.
+    
+    // 版本判断
+    if ( isIOS7 ) {
+        
+        [self.m_titleView setFrame:CGRectMake(0, 20, 320, 48)];
+        
+        if ( iPhone5 ) {
+            
+            [self.m_tempView setFrame:CGRectMake(0, 68, 320, [[UIScreen mainScreen]bounds].size.height - 20 - 48 - 50)];
+            
+        }else{
+            
+            [self.m_tempView setFrame:CGRectMake(0, 68, 320, [[UIScreen mainScreen]bounds].size.height - 50)];
+            
+        }
+        
+        
+        UILabel *label = [[UILabel alloc]initWithFrame:CGRectMake(0, 0, 320, 20)];
+        label.backgroundColor = [UIColor blackColor];
+        
+        [self.view addSubview:label];
+        
+    }else{
+        
+        [self.m_titleView setFrame:CGRectMake(0, 0, 320, 48)];
+        
+        [self.m_tempView setFrame:CGRectMake(0, 48, 320, self.view.frame.size.height - 48 - 50)];
+        
+    }
+    
+    
+    [self.m_downView setFrame:CGRectMake(0, [[UIScreen mainScreen]bounds].size.height - 50, WindowSizeWidth, 50)];
+
+    
+    // 设置去掉多余的tableView的分割线
+    UIView *view = [[UIView alloc]init];
+    view.backgroundColor = [UIColor clearColor];
+    [self.m_tableView setTableFooterView:view];
+    
+    
+    NSLog(@"self.m_status = %@",self.m_status);
+    
+    // 根据状态来判断订单是否可以取消 1已支付-不可取消订单  0 未支付-可取消订单
+    if ( [self.m_status isEqualToString:@"1"] ) {
+        
+        self.m_cancelBtn.hidden = YES;
+        
+    }else{
+        
+        self.m_cancelBtn.hidden = NO;
+
+    }
+    
+    // 隐藏提交座位的按钮
+    self.m_submitBtn.hidden = YES;
+    
+    self.m_seatName.text = @"";
+    self.m_seatNameString = @"";
+    
+    
+    // 请求数据
+    [self orderDetailRequest];
+    
+    
+}
+
+- (void)viewWillAppear:(BOOL)animated{
+    
+    [super viewWillAppear:animated];
+    
+}
+
+- (void)viewWillDisappear:(BOOL)animated{
+    
+    [super viewWillDisappear:animated];
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+- (IBAction)goBack:(id)sender {
+    
+    NSLog(@"seatName = %@",self.m_seatName.text);
+    
+    if ( self.m_seatNameString.length != 0 ) {
+        // 选择了座位后没有进行提交时提示去提交
+        UIAlertView *alertView = [[UIAlertView alloc]initWithTitle:nil
+                                                           message:@"您选择了座位还没提交"
+                                                          delegate:self
+                                                 cancelButtonTitle:@"取消"
+                                                 otherButtonTitles:@"立即提交", nil];
+        alertView.tag = 11132;
+        [alertView show];
+        
+        
+    }else{
+        
+        // 没有选择座位的时候直接返回上一级
+        [self goBack];
+
+    }
+
+
+}
+
+- (void)chooseSeatCkicked:(id)sender {
+    
+    // 请求数据
+    [self seatRequestSubmit];
+  
+}
+
+- (IBAction)submitSeatClicked:(id)sender {
+    
+    NSLog(@"self.m_seatId = %@",self.m_seatId);
+    
+    
+    if ( self.m_seatNameString.length == 0 ) {
+        
+        [SVProgressHUD showErrorWithStatus:@"请先选择座位再提交"];
+        
+        return;
+    }
+    
+    
+    // 提交按钮触发的事件
+    // 判断网络是否存在
+    if ( ![self isConnectionAvailable] ) {
+        return;
+    }
+    
+    NSString *memberId = [CommonUtil getValueByKey:MEMBER_ID];
+    NSString *key = [CommonUtil getServerKey];
+    
+    // 刷新请求数据接口
+    HttpClientRequest* requstClient = [HttpClientRequest sharedInstance];
+    NSDictionary* parameters = [NSDictionary dictionaryWithObjectsAndKeys:
+                                memberId, @"cashierAccountID",
+                                key,@"key",
+                                [NSString stringWithFormat:@"%@",self.m_orderId],@"cloudMenuOrderId",
+                                [NSString stringWithFormat:@"%@",self.m_seatId],@"seatId",nil];
+    
+    [SVProgressHUD showWithStatus:@"数据加载中"];
+    
+    [requstClient request:@"CloudMenuChooseSeat.ashx" parameters:parameters successed:^(JSONDecoder*json,id responseObject){
+        
+        NSData* data = [NSData dataWithData:responseObject];
+        
+        NSDictionary* handlJson = [json objectWithData:data];
+        
+        BOOL success = [[handlJson objectForKey:@"status"] boolValue];
+        
+        if (success) {
+            
+//            [SVProgressHUD dismiss];
+            [SVProgressHUD showSuccessWithStatus:[NSString stringWithFormat:@"%@",[handlJson objectForKey:@"msg"]]];
+            
+            // 清空座位的名称的值
+            self.m_seatNameString = @"";
+            
+            NSLog(@"%@",handlJson);
+            
+            [CommonUtil addValue:@"1" andKey:@"MenuOrderListKey"];
+            
+            // 设置成功座位后返回上一级
+            [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(backLastView) userInfo:nil repeats:NO];
+           
+            
+        }else
+        {
+            [CommonUtil addValue:@"0" andKey:@"MenuOrderListKey"];
+
+            [SVProgressHUD showErrorWithStatus:[NSString stringWithFormat:@"%@",[handlJson objectForKey:@"msg"]]];
+            
+        }
+    } failured:^(NSError* error)
+     {
+         [CommonUtil addValue:@"0" andKey:@"MenuOrderListKey"];
+
+         [SVProgressHUD showErrorWithStatus:error.description];
+     }];
+
+}
+
+- (IBAction)cancelBtnClicked:(id)sender {
+    
+    UIAlertView *alertView = [[UIAlertView alloc]initWithTitle:nil
+                                                       message:@"确定取消订单？"
+                                                      delegate:self
+                                             cancelButtonTitle:@"取消"
+                                             otherButtonTitles:@"确定", nil];
+    alertView.tag = 109324;
+    [alertView show];
+    
+}
+
+- (void)backLastView{
+    
+    [self goBack];
+}
+
+- (void)initDemoData{
+    
+    NSLog(@"meta = %@",menta);
+    
+    menta = [[NSMutableArray alloc]initWithCapacity:0];
+
+    if ( self.m_seatList.count != 0 ) {
+        
+        for (int i = 0; i < self.m_seatList.count; i++) {
+            
+            NSDictionary *dic = [self.m_seatList objectAtIndex:i];
+            
+            DownSheetModel *Model = [[DownSheetModel alloc]init];
+            
+            Model.title = [NSString stringWithFormat:@"%@",[dic objectForKey:@"SeatName"]];
+            
+            [menta addObject:Model];
+            
+        }
+        
+        
+    }else{
+        
+        DownSheetModel *Model_1 = [[DownSheetModel alloc]init];
+        Model_1.title = @"暂无座位";
+        
+        menta = @[Model_1];
+        
+    }
+    
+    // 选择座位 显示数据
+    DownSheet *sheet = [[DownSheet alloc]initWithlist:menta height:0];
+    sheet.delegate = self;
+    [sheet showInView:nil];
+    
+}
+
+- (void)didSelectIndex:(NSInteger)index{
+    
+    if ( self.m_seatList.count != 0 ) {
+        
+        NSDictionary *dic = [self.m_seatList objectAtIndex:index];
+        
+        self.m_seatName.text = [NSString stringWithFormat:@"选择的座位：%@",[dic objectForKey:@"SeatName"]];
+        
+        self.m_seatNameString = [NSString stringWithFormat:@"%@",[dic objectForKey:@"SeatName"]];
+        
+        self.m_seatId = [NSString stringWithFormat:@"%@",[dic objectForKey:@"SeatId"]];
+        
+        
+        // 选择了座位后出现提交按钮
+//        self.m_submitBtn.hidden = NO;
+//        // 选择了座位后取消按钮隐藏，显示提交的按钮
+//        self.m_cancelBtn.hidden = YES;
+        
+        // 刷新tableView
+        NSArray *arr = [NSArray arrayWithObjects:[NSIndexPath indexPathForRow:0 inSection:2], nil];
+        
+        [self.m_tableView reloadRowsAtIndexPaths:arr withRowAnimation:UITableViewRowAnimationNone];
+
+    }else{
+        
+        [SVProgressHUD showErrorWithStatus:@"暂无空座位"];
+        
+        // 没有座位后设置数据为空
+        self.m_seatName.text = @"";
+        self.m_seatId = @"";
+        self.m_seatNameString = @"";
+        // 选择了之后设置tableView的footerView
+        self.m_tableView.tableFooterView = nil;
+        
+        // 没有座位后隐藏提交按钮
+//        self.m_submitBtn.hidden = YES;
+//        // 没有座位后取消按钮显示，隐藏提交的按钮
+//        self.m_cancelBtn.hidden = NO;
+
+
+    }
+    
+}
+
+#pragma mark - UIAlertViewDelegate
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex{
+    
+    if ( alertView.tag == 11132 ) {
+        
+        if ( buttonIndex == 1 ) {
+            // 提交选择的座位
+            [self submitSeatClicked:nil];
+            
+        }else{
+            
+            [self goBack];
+            
+        }
+    }else if ( alertView.tag == 109324 ){
+        
+        if ( buttonIndex == 1 ) {
+            
+            // 取消订单
+            [self cancelOrderRequest];
+        }
+        
+    }
+    
+}
+
+#pragma mark - UITableViewDataSource
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView{
+    
+    return 3;
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section{
+    
+    BOOL expand = [self isSection:section];
+    
+    if ( !expand ) {
+        
+        if ( section == 0 ) {
+            
+            return self.m_orderList.count;
+            
+        }else{
+            
+            return 1;
+        }
+        
+    }else {
+        
+        return 0;
+        
+    }
+    
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath{
+    
+    if ( indexPath.section == 0 ) {
+        
+        static NSString *cellIdentifier = @"OrderCellIdentifier";
+        
+        OrderCell *cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifier];
+        
+        if ( cell == nil ) {
+            
+            NSArray *nib = [[NSBundle mainBundle]loadNibNamed:@"OrderCell" owner:self options:nil];
+            
+            cell = (OrderCell *)[nib objectAtIndex:0];
+            
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            
+        }
+        
+        // 赋值
+        if ( self.m_orderList.count != 0 ) {
+            
+            NSDictionary *dic = [self.m_orderList objectAtIndex:indexPath.row];
+            
+            cell.m_titleLabel.text = [NSString stringWithFormat:@"%@",[dic objectForKey:@"MenuName"]];
+            
+            cell.m_amount.text = [NSString stringWithFormat:@"%@份",[dic objectForKey:@"MenuAmount"]];
+            
+            cell.m_price.text = [NSString stringWithFormat:@"%@元",[dic objectForKey:@"MenuPrice"]];
+            
+        }
+        
+        return cell;
+        
+    }else if ( indexPath.section == 1 ){
+        
+        static NSString *cellIdentifier = @"MenuOrderInfoCellIdentifier";
+        
+        MenuOrderInfoCell *cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifier];
+        
+        if ( cell == nil ) {
+            
+            NSArray *nib = [[NSBundle mainBundle]loadNibNamed:@"OrderCell" owner:self options:nil];
+            
+            cell = (MenuOrderInfoCell *)[nib objectAtIndex:1];
+            
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            
+        }
+        
+        // 赋值
+        if ( self.m_dic.count != 0 ) {
+            
+            cell.m_account.text = [NSString stringWithFormat:@"%@",[self.m_dic objectForKey:@"Account"]];
+            
+            cell.m_personCount.text = [NSString stringWithFormat:@"%@",[self.m_dic objectForKey:@"CloudMenuPerson"]];
+            
+            cell.m_time.text = [NSString stringWithFormat:@"%@",[self.m_dic objectForKey:@"BookDateTime"]];
+            
+            [cell.m_callBtn addTarget:self action:@selector(callBtn:) forControlEvents:UIControlEventTouchUpInside];
+        }
+        
+        return cell;
+      
+    }else{
+        
+        static NSString *cellIdentifier = @"MEnuOrderSeatCellIdentifier";
+        
+        MEnuOrderSeatCell *cell = [tableView dequeueReusableCellWithIdentifier:cellIdentifier];
+        
+        if ( cell == nil ) {
+            
+            NSArray *nib = [[NSBundle mainBundle]loadNibNamed:@"OrderCell" owner:self options:nil];
+            
+            cell = (MEnuOrderSeatCell *)[nib objectAtIndex:2];
+            
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            
+        }
+        
+        // 赋值
+        
+        if ( self.m_seatNameString.length == 0 ) {
+            
+            cell.m_seatName.text = @"暂时没有选择座位";
+
+        }else{
+            
+            cell.m_seatName.text = [NSString stringWithFormat:@"%@",self.m_seatNameString];
+
+        }
+        
+        [cell.m_seatBtn setTitle:@"选择座位" forState:UIControlStateNormal];
+        [cell.m_seatBtn addTarget:self action:@selector(chooseSeatCkicked:) forControlEvents:UIControlEventTouchUpInside];
+        
+        
+        return cell;
+    }
+    
+}
+
+- (void)callBtn:(id)sender{
+    
+    // 判断设备是否支持
+    if([[[UIDevice currentDevice] model] rangeOfString:@"iPhone Simulator"].location != NSNotFound) {
+        
+        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"温馨提示"
+                                                        message:@"该设备暂不支持电话功能"
+                                                       delegate:self
+                                              cancelButtonTitle:@"确定"
+                                              otherButtonTitles: nil];
+        [alert show];
+        
+    }else{
+        
+        self.m_webView = [[UIWebView alloc] initWithFrame:[UIScreen mainScreen].applicationFrame];
+        
+        NSString *phone = [NSString stringWithFormat:@"%@",[self.m_dic objectForKey:@"Account"]];
+        [self.m_webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"tel:%@", phone]]]];
+        
+    }
+
+}
+
+#pragma mark - UITableViewDelegate
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section{
+    
+    if ( section == 2 ) {
+        
+        return nil;
+        
+    }else{
+        
+        UIView *tempView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, WindowSizeWidth, 44)];
+        tempView.backgroundColor = [UIColor whiteColor];
+        
+        // 显示名称
+        UILabel *label = [[UILabel alloc]initWithFrame:CGRectMake(10, 5, 200, 34)];
+        
+        if ( section == 0 ) {
+            
+            label.text = @"预定的商品";
+            
+        }else{
+            
+            label.text = @"预定人信息";
+            
+        }
+        
+        //    label.textColor = RGBACKTAB;
+        label.font = [UIFont systemFontOfSize:16.0f];
+        label.backgroundColor = [UIColor clearColor];
+        label.textAlignment = NSTextAlignmentLeft;
+        [tempView addSubview:label];
+        
+        
+        // 根据字典里的值显示按钮勾选的状态
+        //    NSMutableSet *expandedSectionsSet = [self.m_dic objectForKey:[NSNumber numberWithInteger:section]];
+        
+        
+        // 添加按钮
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        btn.frame = CGRectMake(0, 0, WindowSizeWidth, 44);
+        [btn addTarget:self action:@selector(headerClicked:) forControlEvents:UIControlEventTouchUpInside];
+        btn.tag = section;
+        [tempView addSubview:btn];
+        
+        // 添加箭头变化的图片
+        UIImageView *imgV = [[UIImageView alloc]initWithFrame:CGRectMake(WindowSizeWidth - 30, 17, 16, 10)];
+        
+        BOOL expand = [self isSection:section];
+        
+        // 判断是展开还是闭合
+        if ( expand ) {
+            
+            imgV.image = [UIImage imageNamed:@"arrow_L_up.png"];
+            
+        } else {
+            
+            imgV.image = [UIImage imageNamed:@"arrow_L_down.png"];
+            
+        }
+        
+        
+        [tempView addSubview:imgV];
+        
+        
+        return tempView;
+
+    }
+}
+
+#pragma mark - UITableViewDelegate
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section{
+    
+    if ( section == 2 ) {
+        
+        return 0.0f;
+        
+    }else{
+        
+        return 44.0f;
+
+    }
+
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath{
+    
+    if ( indexPath.section == 0 ) {
+        
+        return 60.0f;
+
+    }else if ( indexPath.section == 1 ){
+        
+        return 75.0f;
+        
+    }else{
+        
+        return 44.0f;
+    }
+
+}
+
+// 判断是否展开
+- (BOOL)isSection:(NSInteger)section{
+    
+    BOOL result = NO;
+    
+    if ( [self.m_SectionsSet containsObject:[NSNumber numberWithInteger:section]] ) {
+        
+        result = YES;
+        
+    }
+    
+    return result;
+}
+
+// 展开的section保存到expandedSectionsSet里面
+- (void)setSection:(int)section expand:(BOOL)expand{
+    
+    if ( expand ) {
+        
+        if ( ![self.m_SectionsSet containsObject:[NSNumber numberWithInteger:section]] ) {
+            // 首先是只显示一个点击展开的列表-即删除数据
+            //            [self.m_SectionsSet removeAllObjects];
+            //
+            //            [self.m_SectionsSet addObject:[NSNumber numberWithInteger:section]];
+            
+            // 如果展开全部的数据则写下面这行代码
+            [self.m_SectionsSet addObject:[NSNumber numberWithInteger:section]];
+            
+            
+        }
+        
+    }else{
+        // 如果展开全部的数据则写下面这行代码
+        [self.m_SectionsSet removeObject:[NSNumber numberWithInteger:section]];
+        
+        // 首先是只显示一个点击展开的列表-即删除数据
+        //        [self.m_SectionsSet removeAllObjects];
+        
+    }
+    
+}
+
+- (void)headerClicked:(id)sender{
+    
+    // button的tag值
+    UIButton *btn = (UIButton *)sender;
+    
+    //    sectionIndex = btn.tag;
+    
+    // bool值判断哪个section是展开还是合起来的
+    BOOL expand = [self isSection:btn.tag];
+    
+    [self setSection:btn.tag expand:!expand];
+    
+    // 刷新tableView 展开全部的列表的话则就刷新某一行
+    //    [self.m_tableView reloadSections:[NSIndexSet indexSetWithIndex:btn.tag] withRowAnimation:UITableViewRowAnimationNone];
+    
+    [self.m_tableView reloadData];
+    
+    
+}
+
+#pragma mark - 详情请求数据
+- (void)orderDetailRequest{
+    // 判断网络是否存在
+    if ( ![self isConnectionAvailable] ) {
+        return;
+    }
+    
+    NSString *memberId = [CommonUtil getValueByKey:MEMBER_ID];
+    NSString *key = [CommonUtil getServerKey];
+    
+    // 刷新请求数据接口
+    HttpClientRequest* requstClient = [HttpClientRequest sharedInstance];
+    NSDictionary* parameters = [NSDictionary dictionaryWithObjectsAndKeys:
+                                memberId, @"cashierAccountID",
+                                key,@"key",
+                                [NSString stringWithFormat:@"%@",self.m_orderId],@"cloudMenuOrderId",nil];
+    
+    [SVProgressHUD showWithStatus:@"数据加载中"];
+    
+    [requstClient request:@"CloudMenuOrderDetail.ashx" parameters:parameters successed:^(JSONDecoder*json,id responseObject){
+        
+        NSData* data = [NSData dataWithData:responseObject];
+        
+        NSDictionary* handlJson = [json objectWithData:data];
+        
+        BOOL success = [[handlJson objectForKey:@"status"] boolValue];
+        
+        if (success) {
+            
+            [SVProgressHUD dismiss];
+            
+            NSLog(@"%@",handlJson);
+            
+            // 赋值
+            self.m_dic = handlJson;
+            
+            self.m_orderList = [handlJson valueForKey:@"orderDetailList"];
+//
+//            // 赋值
+//            self.m_totalPrice.text = [NSString stringWithFormat:@"%@元",[handlJson valueForKey:@"PriceAmount"]];
+            
+            // 刷新列表
+            [self.m_tableView reloadData];
+            
+        }else
+        {
+            
+            [SVProgressHUD showErrorWithStatus:[NSString stringWithFormat:@"%@",[handlJson objectForKey:@"msg"]]];
+            
+        }
+    } failured:^(NSError* error)
+     {
+         
+         [SVProgressHUD showErrorWithStatus:error.description];
+     }];
+    
+    
+    
+}
+
+// 座位列表请求数据
+- (void)seatRequestSubmit{
+    
+    // 判断网络是否存在
+    if ( ![self isConnectionAvailable] ) {
+        return;
+    }
+    
+    NSString *memberId = [CommonUtil getValueByKey:MEMBER_ID];
+    NSString *key = [CommonUtil getServerKey];
+    
+    // 刷新请求数据接口
+    HttpClientRequest* requstClient = [HttpClientRequest sharedInstance];
+    NSDictionary* parameters = [NSDictionary dictionaryWithObjectsAndKeys:
+                                memberId, @"cashierAccountID",
+                                key,@"key",nil];
+    
+//    [SVProgressHUD showWithStatus:@"数据加载中"];
+    
+    [requstClient request:@"SeatList.ashx" parameters:parameters successed:^(JSONDecoder*json,id responseObject){
+        
+        NSData* data = [NSData dataWithData:responseObject];
+        
+        NSDictionary* handlJson = [json objectWithData:data];
+        
+        BOOL success = [[handlJson objectForKey:@"status"] boolValue];
+        
+        if (success) {
+            
+            [SVProgressHUD dismiss];
+            
+            NSLog(@"json2222 = %@",handlJson);
+            
+            // 赋值
+            self.m_seatList = [handlJson valueForKey:@"SeatList"];
+            
+            // 初始化座位
+            [self initDemoData];
+            
+            
+        }else
+        {
+            
+            [SVProgressHUD showErrorWithStatus:[NSString stringWithFormat:@"%@",[handlJson objectForKey:@"msg"]]];
+            
+        }
+    } failured:^(NSError* error)
+     {
+         
+         [SVProgressHUD showErrorWithStatus:error.description];
+     }];
+    
+    
+}
+
+- (void)cancelOrderRequest{
+    
+    // 判断网络是否存在
+    if ( ![self isConnectionAvailable] ) {
+        return;
+    }
+    
+    NSString *memberId = [CommonUtil getValueByKey:MEMBER_ID];
+    NSString *key = [CommonUtil getServerKey];
+    
+    // 刷新请求数据接口
+    HttpClientRequest* requstClient = [HttpClientRequest sharedInstance];
+    NSDictionary* parameters = [NSDictionary dictionaryWithObjectsAndKeys:
+                                memberId, @"cashierAccountID",
+                                key,@"key",
+                                [NSString stringWithFormat:@"%@",self.m_orderId],@"cloudMenuOrderId",nil];
+    
+    [SVProgressHUD showWithStatus:@"数据加载中"];
+    
+    [requstClient request:@"DeleteCloudMenuOrder.ashx" parameters:parameters successed:^(JSONDecoder*json,id responseObject){
+        
+        NSData* data = [NSData dataWithData:responseObject];
+        
+        NSDictionary* handlJson = [json objectWithData:data];
+        
+        BOOL success = [[handlJson objectForKey:@"status"] boolValue];
+        
+        if (success) {
+            
+            [SVProgressHUD showSuccessWithStatus:[NSString stringWithFormat:@"%@",[handlJson objectForKey:@"msg"]]];
+            
+            NSLog(@"%@",handlJson);
+            
+            [CommonUtil addValue:@"1" andKey:@"MenuOrderListKey"];
+            
+            // 设置成功座位后返回上一级
+            [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(backLastView) userInfo:nil repeats:NO];
+            
+            
+        }else
+        {
+            [CommonUtil addValue:@"0" andKey:@"MenuOrderListKey"];
+            
+            [SVProgressHUD showErrorWithStatus:[NSString stringWithFormat:@"%@",[handlJson objectForKey:@"msg"]]];
+            
+        }
+    } failured:^(NSError* error)
+     {
+         
+         [CommonUtil addValue:@"0" andKey:@"MenuOrderListKey"];
+         
+         [SVProgressHUD showErrorWithStatus:error.description];
+     }];
+    
+}
+
+
+@end

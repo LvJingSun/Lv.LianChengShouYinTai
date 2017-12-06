@@ -1,0 +1,39 @@
+//
+//  upcardchoseViewController.h
+//  CashierDeskIphone
+//
+//  Created by 冯海强 on 15-4-20.
+//  Copyright (c) 2015年 MaxLinksTec. All rights reserved.
+//
+
+#import "BaseViewController.h"
+#import "CommonUtil.h"
+#import "UIImageView+AFNetworking.h"
+#import "ImageCache.h"
+#import <ZXingWidgetController.h>
+#import <QRCodeReader.h>
+
+@interface upcardchoseViewController : BaseViewController<UITextFieldDelegate,ZXingDelegate>
+{
+    IBOutlet UITextField *phonetextfield;
+        
+    NSString *firstmoney;
+    
+    NSString *VipCardRecordId;
+    
+}
+
+@property (nonatomic, copy) NSString *type;
+
+@property (weak, nonatomic) IBOutlet UIButton *saomiaoBtn;
+@property (weak, nonatomic) IBOutlet UILabel *titlelab;
+
+@property (weak, nonatomic) IBOutlet UIView *m_titleVIew;
+@property (weak, nonatomic) IBOutlet UIView *m_tempView;
+//确认信息
+@property (weak, nonatomic) IBOutlet UIView *m_confirmView;
+@property (weak, nonatomic) IBOutlet UILabel *m_namelabel;
+@property (weak, nonatomic) IBOutlet UILabel *m_moneylabel;
+@property (weak, nonatomic) IBOutlet UIImageView *m_photoView;
+@property (weak, nonatomic) ImageCache *imageCache;
+@end

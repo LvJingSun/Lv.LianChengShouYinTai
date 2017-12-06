@@ -1,0 +1,20 @@
+//
+// Prefix header for all source files of the 'CashierDeskIphone' target in the 'CashierDeskIphone' project
+//
+
+#import <Availability.h>
+
+#ifndef __IPHONE_3_0
+#warning "This project uses features only available in iOS SDK 3.0 and later."
+#endif
+
+#ifdef __OBJC__
+    #import <UIKit/UIKit.h>
+    #import <Foundation/Foundation.h>
+
+#define RGBA(R/*红*/, G/*绿*/, B/*蓝*/, A/*透明*/) \
+[UIColor colorWithRed:R/255.f green:G/255.f blue:B/255.f alpha:A]
+
+
+
+#endif

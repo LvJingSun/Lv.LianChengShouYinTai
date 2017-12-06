@@ -1,0 +1,20 @@
+//
+//  WaimaiOrderViewController.h
+//  CashierDeskIphone
+//
+//  Created by mac on 15-8-28.
+//  Copyright (c) 2015年 MaxLinksTec. All rights reserved.
+//  外卖订单的页面
+
+#import "BaseViewController.h"
+
+@interface WaimaiOrderViewController : BaseViewController<UITableViewDataSource,UITableViewDelegate>
+
+
+@property (nonatomic, strong) NSMutableArray    *m_orderList;
+
+
+// 判断是否是展开还是闭合的集合
+@property (nonatomic, strong) NSMutableSet          *m_SectionsSet;
+
+@end
